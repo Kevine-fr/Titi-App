@@ -1,0 +1,33 @@
+# Override appliqué uniquement quand on ouvre dans VS Code Dev Containers.
+# But : remplacer le mode prod (build statique + entrypoint migrations)
+# par un mode dev avec hot-reload, source bind-mountée, deps en volume nommé.
+services:
+  app:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+      target: deps          # on s'arrête au stage qui a node_modules complet
+    # Vide l'entrypoint de prod (plus de migrate deploy auto au démarrage)
+    entrypoint: []
+    # sleep infinity garde le container vivant pour que VS Code s'y attache.
+    # Tu lanceras `npm run dev` depuis le terminal intégré.
+    command: sleep infinity
+    volumes:
+      # Source bind-mountée → édition live depuis l'hôte
+      - ../app:/workspace:cached
+      # node_modules dans un volume nommé : bien plus rapide que via Windows
+      - app_node_modules:/workspace/node_modules
+    working_dir: /workspace
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+
+  # Expose Postgres directement à l'hôte pour pouvoir s'y connecter
+  # depuis DBeaver/TablePlus pendant le dev
+  db:
+    ports:
+      - "5432:5432"
+
+volumes:
+  app_node_modules:

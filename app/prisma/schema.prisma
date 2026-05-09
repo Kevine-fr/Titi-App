@@ -1,0 +1,39 @@
+// Schéma Prisma — métadonnées en Postgres, le binaire reste sur le disque
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model File {
+  id          String   @id @default(cuid())
+  // Nom original tel que vu par l'admin
+  name        String
+  // Nom sur le disque (UUID, jamais le nom original — sécurité + dédup)
+  storageKey  String   @unique
+  // Taille en octets. BigInt parce que > 2 Go possible.
+  size        BigInt
+  // Type MIME (on impose application/pdf à l'upload mais on stocke quand même)
+  mimeType    String
+  description String?
+  // SHA-256 hex du contenu, utile pour dédupliquer / vérifier l'intégrité
+  checksum    String?
+
+  uploadedAt  DateTime @default(now())
+  uploadedBy  String?  // email de l'admin qui a uploadé
+
+  @@index([uploadedAt])
+  @@map("files")
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@map("admin_users")
+}
