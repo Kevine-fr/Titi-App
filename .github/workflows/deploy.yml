@@ -27,7 +27,7 @@ jobs:
         run: |
           ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} bash << 'EOF'
           set -e
-          cd /home/kevine/deploy/Titi-Server
+          cd /home/kevine/deploy/Titi-App
 
           echo "→ Pull du code..."
           git fetch origin
