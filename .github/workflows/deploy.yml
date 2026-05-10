@@ -1,0 +1,69 @@
+name: Deploy Titi to Production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} bash << EOF
+          set -e
+          cd /home/kevine/deploy/Titi-Server
+
+          echo "→ Pull du code..."
+          git fetch origin
+          git reset --hard origin/main
+
+          echo "→ Génération du .env..."
+          cat > .env << 'ENVEOF'
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          SESSION_PASSWORD=${{ secrets.SESSION_PASSWORD }}
+          ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+          MAX_UPLOAD_SIZE_MB=1024
+          ENVEOF
+          chmod 600 .env
+
+          echo "→ Build et démarrage des containers..."
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+          echo "→ Attente que l'app soit healthy..."
+          timeout 120 bash -c 'until [ "\$(docker inspect -f "{{.State.Health.Status}}" app_titi 2>/dev/null)" = "healthy" ]; do sleep 3; echo -n "."; done'
+          echo " ok"
+
+          echo "→ Reload nginx_proxy..."
+          docker exec nginx_proxy nginx -t
+          docker exec nginx_proxy nginx -s reload
+
+          echo ""
+          docker ps --filter name=titi --format "table {{.Names}}\t{{.Status}}"
+          echo ""
+          echo "✓ Déployé : https://app-titi.wk-archi-o22a-15m-g1.fr"
+          EOF
+
+      - name: Résumé
+        run: |
+          echo "## ✓ Production déployée" >> \$GITHUB_STEP_SUMMARY
+          echo "| URL | https://app-titi.wk-archi-o22a-15m-g1.fr |" >> \$GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> \$GITHUB_STEP_SUMMARY
