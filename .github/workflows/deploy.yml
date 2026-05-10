@@ -25,9 +25,9 @@ jobs:
 
       - name: Deploy to VPS
         run: |
-          ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} bash << EOF
+          ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} bash << 'EOF'
           set -e
-          cd /home/kevine/deploy/Titi-App
+          cd /home/kevine/deploy/Titi-Server
 
           echo "→ Pull du code..."
           git fetch origin
@@ -45,12 +45,30 @@ jobs:
           ENVEOF
           chmod 600 .env
 
-          echo "→ Build et démarrage des containers..."
+          echo "→ Build et démarrage..."
           docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
-          echo "→ Attente que l'app soit healthy..."
-          timeout 120 bash -c 'until [ "\$(docker inspect -f "{{.State.Health.Status}}" app_titi 2>/dev/null)" = "healthy" ]; do sleep 3; echo -n "."; done'
-          echo " ok"
+          echo "→ Attente que l'app soit healthy (max 180s)..."
+          for i in $(seq 1 60); do
+            STATUS=$(docker inspect -f "{{.State.Health.Status}}" app_titi 2>/dev/null || echo "missing")
+            if [ "$STATUS" = "healthy" ]; then
+              echo " ✓ healthy après ${i} cycles"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo ""
+              echo "✗ Toujours pas healthy après 180s. Diagnostic :"
+              echo "--- docker ps ---"
+              docker ps --filter name=titi
+              echo "--- logs app_titi (50 dernières lignes) ---"
+              docker logs --tail 50 app_titi 2>&1
+              echo "--- inspect health ---"
+              docker inspect -f "{{json .State.Health}}" app_titi
+              exit 1
+            fi
+            sleep 3
+            echo -n "."
+          done
 
           echo "→ Reload nginx_proxy..."
           docker exec nginx_proxy nginx -t
@@ -58,7 +76,6 @@ jobs:
 
           echo ""
           docker ps --filter name=titi --format "table {{.Names}}\t{{.Status}}"
-          echo ""
           echo "✓ Déployé : https://app-titi.wk-archi-o22a-15m-g1.fr"
           EOF
 
