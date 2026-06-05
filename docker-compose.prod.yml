@@ -1,6 +1,6 @@
 services:
   db:
-    container_name: postgres_titi
+    container_name: titi-postgres
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -18,7 +18,7 @@ services:
       - titi_internal
 
   app:
-    container_name: app_titi
+    container_name: titi-app
     build:
       context: ./app
       dockerfile: Dockerfile
