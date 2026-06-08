@@ -37,10 +37,9 @@ services:
       - file_data:/data/files
     depends_on:
       - db
-    expose:
-      - "3000"
     networks:
       - titi_internal
+      - web
 
 volumes:
   db_data:
