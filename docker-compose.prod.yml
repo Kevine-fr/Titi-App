@@ -36,7 +36,7 @@ services:
     volumes:
       - file_data:/data/files
     depends_on:
-      db:
+      - db
     networks:
       - titi_internal
       - web
