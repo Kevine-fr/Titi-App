@@ -33,11 +33,6 @@ services:
       STORAGE_PATH: /data/files
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-1024}
       NODE_ENV: production
-    healthcheck:
-      test: ["CMD-SHELL", "docker exec -it titi-app wget https://app-titi.wk-archi-o22a-15m-g1.fr"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
     volumes:
       - file_data:/data/files
     depends_on:
