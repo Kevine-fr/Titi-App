@@ -1,11 +1,8 @@
 {
-  "name": "Archive Fileapp",
-  "dockerComposeFile": [
-    "../docker-compose.yml",
-    "docker-compose.yml"
-  ],
+  "name": "Archive File app",
+  "dockerComposeFile": "../docker-compose.yml",
   "service": "app",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/app",
   "shutdownAction": "stopCompose",
   "forwardPorts": [3000, 5432],
   "portsAttributes": {

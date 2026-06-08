@@ -1,6 +1,6 @@
 services:
   db:
-    container_name: postgres_titi
+    container_name: titi-postgres
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -16,7 +16,7 @@ services:
       retries: 10
 
   app:
-    container_name: app_titi
+    container_name: titi-app
     build:
       context: ./app
       dockerfile: Dockerfile
@@ -38,6 +38,7 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+    working_dir: /
 
 volumes:
   db_data:
