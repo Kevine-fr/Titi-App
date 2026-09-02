@@ -1,3 +1,12 @@
+# Plafonds de ressources (VPS mutualise 8 vCPU / 24 Go) : voir CAPACITY.md dans
+# le depot Infrastructure. mem_limit est un garde-fou, pas une reservation ;
+# cpu_shares ne joue qu'en cas de contention (1024 = prod, 256 = outillage).
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     container_name: titi-postgres
@@ -14,6 +23,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    mem_limit: 512m
+    cpus: 1
+    cpu_shares: 1024
+    logging: *logging
     networks:
       - titi_internal
 
@@ -37,6 +50,40 @@ services:
       - file_data:/data/files
     depends_on:
       - db
+    mem_limit: 640m
+    cpus: 1
+    cpu_shares: 1024
+    logging: *logging
+    networks:
+      - titi_internal
+      - web
+
+  # Exporter Prometheus de la base Titi.
+  # Il vit ici, et non dans la stack Infrastructure, pour deux raisons :
+  #   - la base reste sur son reseau prive (titi_internal) : inutile d'exposer
+  #     titi-postgres a tous les conteneurs du reseau partage "web" ;
+  #   - aucun identifiant a recopier dans le .env de l'infra (il lit ceux de
+  #     cette stack). L'exporter, lui, est sur "web" pour que Prometheus le
+  #     scrute -- il n'expose que des metriques, pas la base.
+  # Le nom du conteneur est celui attendu par prometheus.yml (job "postgres").
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter-titi
+    restart: unless-stopped
+    environment:
+      # Formes separees plutot qu'un DSN complet : un mot de passe contenant
+      # @ / : ou ? casserait une URL, pas ces variables.
+      DATA_SOURCE_URI: db:5432/${POSTGRES_DB}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES_USER}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+    expose:
+      - "9187"
+    depends_on:
+      - db
+    mem_limit: 96m
+    cpus: 0.2
+    cpu_shares: 256
+    logging: *logging
     networks:
       - titi_internal
       - web
