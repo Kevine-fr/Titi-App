@@ -48,9 +48,13 @@ jobs:
           echo "→ Build et démarrage..."
           docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
+          # Le conteneur s'appelle titi-app (container_name du compose) : l'attente
+          # visait « app_titi », qui n'existe pas, et le déploiement finissait en
+          # échec après 180 s alors que l'application tournait (healthy). Le
+          # nginx du dépôt Infrastructure s'appelle « nginx », pas « nginx_proxy ».
           echo "→ Attente que l'app soit healthy (max 180s)..."
           for i in $(seq 1 60); do
-            STATUS=$(docker inspect -f "{{.State.Health.Status}}" app_titi 2>/dev/null || echo "missing")
+            STATUS=$(docker inspect -f "{{.State.Health.Status}}" titi-app 2>/dev/null || echo "missing")
             if [ "$STATUS" = "healthy" ]; then
               echo " ✓ healthy après ${i} cycles"
               break
@@ -60,10 +64,10 @@ jobs:
               echo "✗ Toujours pas healthy après 180s. Diagnostic :"
               echo "--- docker ps ---"
               docker ps --filter name=titi
-              echo "--- logs app_titi (50 dernières lignes) ---"
-              docker logs --tail 50 app_titi 2>&1
+              echo "--- logs titi-app (50 dernières lignes) ---"
+              docker logs --tail 50 titi-app 2>&1
               echo "--- inspect health ---"
-              docker inspect -f "{{json .State.Health}}" app_titi
+              docker inspect -f "{{json .State.Health}}" titi-app
               exit 1
             fi
             sleep 3
@@ -71,8 +75,8 @@ jobs:
           done
 
           echo "→ Reload nginx_proxy..."
-          docker exec nginx_proxy nginx -t
-          docker exec nginx_proxy nginx -s reload
+          docker exec nginx nginx -t
+          docker exec nginx nginx -s reload
 
           echo ""
           docker ps --filter name=titi --format "table {{.Names}}\t{{.Status}}"

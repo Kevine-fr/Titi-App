@@ -37,3 +37,6 @@ jobs:
       - name: Contrat de sauvegarde
         working-directory: .
         run: bash tests/sauvegarde.test.sh
+      - name: Conteneurs visés par le déploiement
+        working-directory: .
+        run: bash tests/deploiement.test.sh
