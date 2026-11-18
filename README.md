@@ -218,3 +218,16 @@ docker compose down -v
             ├── storage.ts  # chemins disque + UUIDs
             └── format.ts
 ```
+
+---
+
+## Tests, métriques et sauvegardes
+
+```bash
+cd app && npm ci && npm run typecheck && npm test && npm run build
+bash tests/sauvegarde.test.sh   # depuis la racine
+```
+
+- **Métriques Prometheus** : `GET /api/metrics` — requêtes et latences par route (`http_requests_total`, `http_request_duration_seconds`), téléversements (`titi_televersements_total{resultat}`), nombre et volume des PDF (`titi_fichiers`, `titi_stockage_octets`), métriques du processus Node.
+- **Sauvegarde** : `./scripts/backup.sh` (dump Postgres + PDF du volume, une archive) ; `./scripts/restore.sh <archive>`. Les envois automatiques vers MinIO sont faits par le dépôt Infrastructure.
+- Conventions de travail : `CLAUDE.md`.

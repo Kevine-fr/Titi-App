@@ -6,9 +6,12 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm install --no-audit --no-fund
+# npm ci : les versions exactes du package-lock. Sans lui, chaque construction
+# prenait les dernières versions compatibles (Next ^15), et deux images du
+# même commit pouvaient différer.
+RUN npm ci --no-audit --no-fund
 
 # ============================================================
 # STAGE 2 : Build
@@ -61,6 +64,10 @@ RUN mkdir -p /data/files && chown -R nextjs:nodejs /data
 
 USER nextjs
 EXPOSE 3000
+
+# Docker voit un conteneur bloqué, pas seulement arrêté (node a fetch).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/metrics').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "server.js"]

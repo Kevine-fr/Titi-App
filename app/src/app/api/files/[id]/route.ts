@@ -3,13 +3,14 @@ import { unlink } from "node:fs/promises";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getFilePath } from "@/lib/storage";
+import { instrumenter } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 
-export async function DELETE(
+export const DELETE = instrumenter("/api/files/[id]", async (
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const session = await getSession();
   if (!session.adminId) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
@@ -31,4 +32,4 @@ export async function DELETE(
   }
 
   return NextResponse.json({ ok: true });
-}
+});
