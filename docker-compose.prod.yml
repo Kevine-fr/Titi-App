@@ -73,7 +73,9 @@ services:
     environment:
       # Formes separees plutot qu'un DSN complet : un mot de passe contenant
       # @ / : ou ? casserait une URL, pas ces variables.
-      DATA_SOURCE_URI: db:5432/${POSTGRES_DB}?sslmode=disable
+      # titi-postgres et non « db » : l'exporter est aussi sur « web », où
+      # d'autres stacks ont un service « db ».
+      DATA_SOURCE_URI: titi-postgres:5432/${POSTGRES_DB}?sslmode=disable
       DATA_SOURCE_USER: ${POSTGRES_USER}
       DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
     expose:
