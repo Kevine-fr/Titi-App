@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { instrumenter } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export const GET = instrumenter("/api/files", async () => {
   const files = await prisma.file.findMany({
     orderBy: { uploadedAt: "desc" },
     select: {
@@ -20,4 +21,4 @@ export async function GET() {
   return NextResponse.json(
     files.map((f) => ({ ...f, size: Number(f.size) })),
   );
-}
+});

@@ -11,6 +11,8 @@ import {
   getFilePath,
   MAX_UPLOAD_SIZE_BYTES,
 } from "@/lib/storage";
+import { instrumenter, metriques } from "@/lib/metrics";
+import { decoderNomFichier } from "@/lib/nom-fichier";
 
 // On a besoin de Node (streams natifs, fs) — pas de Edge runtime ici.
 export const runtime = "nodejs";
@@ -29,7 +31,7 @@ export const maxDuration = 600;
  *
  * On stream directement vers le disque, sans bufferiser en RAM.
  */
-export async function POST(req: NextRequest) {
+export const POST = instrumenter("/api/upload", async (req: NextRequest) => {
   // --- 1. Auth admin ---
   const session = await getSession();
   if (!session.adminId) {
@@ -37,17 +39,18 @@ export async function POST(req: NextRequest) {
   }
 
   // --- 2. Validation des headers ---
-  const rawFilename = req.headers.get("x-file-name");
-  if (!rawFilename) {
+  const filename = decoderNomFichier(req.headers.get("x-file-name"));
+  if (!filename) {
+    metriques.televersements.inc({ resultat: "refuse" });
     return NextResponse.json(
-      { error: "Header X-File-Name manquant" },
+      { error: "Header X-File-Name manquant ou mal encodé" },
       { status: 400 },
     );
   }
-  const filename = decodeURIComponent(rawFilename);
 
   const mimeType = req.headers.get("content-type") ?? "application/octet-stream";
   if (mimeType !== "application/pdf") {
+    metriques.televersements.inc({ resultat: "refuse" });
     return NextResponse.json(
       { error: "Seuls les fichiers PDF sont acceptés" },
       { status: 415 },
@@ -56,6 +59,7 @@ export async function POST(req: NextRequest) {
 
   const contentLength = Number(req.headers.get("content-length") ?? 0);
   if (contentLength > 0 && contentLength > MAX_UPLOAD_SIZE_BYTES) {
+    metriques.televersements.inc({ resultat: "trop_gros" });
     return NextResponse.json(
       { error: `Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_BYTES} octets)` },
       { status: 413 },
@@ -98,6 +102,7 @@ export async function POST(req: NextRequest) {
     // Cleanup du fichier partiel
     await unlink(tempPath).catch(() => {});
     const isLimit = (err as Error).message === "LIMIT_EXCEEDED";
+    metriques.televersements.inc({ resultat: isLimit ? "trop_gros" : "erreur" });
     return NextResponse.json(
       { error: isLimit ? "Fichier trop volumineux" : "Échec de l'upload" },
       { status: isLimit ? 413 : 500 },
@@ -109,24 +114,37 @@ export async function POST(req: NextRequest) {
     await rename(tempPath, finalPath);
   } catch {
     await unlink(tempPath).catch(() => {});
+    metriques.televersements.inc({ resultat: "erreur" });
     return NextResponse.json({ error: "Échec du commit du fichier" }, { status: 500 });
   }
 
   // --- 6. Création du record DB ---
-  const file = await prisma.file.create({
-    data: {
-      name: filename,
-      storageKey,
-      size: BigInt(bytesWritten),
-      mimeType,
-      checksum: hash.digest("hex"),
-      uploadedBy: session.adminEmail,
-    },
-  });
+  // Base indisponible : sans ce nettoyage, le PDF restait sur le disque sans
+  // ligne en base — invisible, jamais supprimé, et compté dans le volume.
+  let file;
+  try {
+    file = await prisma.file.create({
+      data: {
+        name: filename,
+        storageKey,
+        size: BigInt(bytesWritten),
+        mimeType,
+        checksum: hash.digest("hex"),
+        uploadedBy: session.adminEmail,
+      },
+    });
+  } catch (err) {
+    await unlink(finalPath).catch(() => {});
+    metriques.televersements.inc({ resultat: "erreur" });
+    console.error("[upload] Enregistrement en base impossible :", err);
+    return NextResponse.json({ error: "Échec de l'enregistrement" }, { status: 500 });
+  }
+  metriques.televersements.inc({ resultat: "ok" });
+  metriques.octetsTeleverses.inc(bytesWritten);
 
   return NextResponse.json({
     id: file.id,
     name: file.name,
     size: bytesWritten,
   });
-}
+});

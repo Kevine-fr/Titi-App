@@ -3,6 +3,8 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { prisma } from "@/lib/prisma";
 import { getFilePath } from "@/lib/storage";
+import { instrumenter } from "@/lib/metrics";
+import { lirePlage } from "@/lib/range";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,10 +16,10 @@ export const dynamic = "force-dynamic";
  *     tout télécharger en bloc).
  *   - ?download=1 force Content-Disposition: attachment.
  */
-export async function GET(
+export const GET = instrumenter("/api/stream/[id]", async (
   req: Request,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const { id } = await params;
   const url = new URL(req.url);
   const forceDownload = url.searchParams.get("download") === "1";
@@ -40,7 +42,7 @@ export async function GET(
   const encodedName = encodeURIComponent(file.name);
   const disposition = `${forceDownload ? "attachment" : "inline"}; filename*=UTF-8''${encodedName}`;
 
-  const range = req.headers.get("range");
+  const plage = lirePlage(req.headers.get("range"), fileSize);
   const baseHeaders: Record<string, string> = {
     "Content-Type": file.mimeType,
     "Accept-Ranges": "bytes",
@@ -50,23 +52,14 @@ export async function GET(
   };
 
   // --- Cas Range request (206 Partial Content) ---
-  if (range) {
-    const match = /^bytes=(\d+)-(\d*)$/.exec(range.trim());
-    if (!match) {
-      return new Response("Range invalide", {
-        status: 416,
-        headers: { "Content-Range": `bytes */${fileSize}` },
-      });
-    }
-    const start = parseInt(match[1], 10);
-    const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
-
-    if (start >= fileSize || end >= fileSize || start > end) {
-      return new Response("Range hors limites", {
-        status: 416,
-        headers: { "Content-Range": `bytes */${fileSize}` },
-      });
-    }
+  if (plage === "invalide") {
+    return new Response("Range invalide", {
+      status: 416,
+      headers: { "Content-Range": `bytes */${fileSize}` },
+    });
+  }
+  if (plage) {
+    const { start, end } = plage;
 
     const chunkSize = end - start + 1;
     const nodeStream = createReadStream(filePath, { start, end });
@@ -92,4 +85,4 @@ export async function GET(
       headers: { ...baseHeaders, "Content-Length": String(fileSize) },
     },
   );
-}
+});

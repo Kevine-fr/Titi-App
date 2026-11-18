@@ -23,3 +23,7 @@ Thumbs.db
 
 # Build / runtime
 *.tsbuildinfo
+
+# Sauvegardes locales (scripts/backup.sh)
+backups/
+next-env.d.ts
