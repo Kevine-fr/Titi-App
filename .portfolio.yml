@@ -1,0 +1,15 @@
+# Fiche lue par le portfolio (Portfolio-Server, synchronisation GitHub).
+# Elle prime sur le README : titre, résumé et technologies affichés.
+title: Titi
+subtitle: Hébergement de PDF lourds
+description: Application Next.js auto-hébergée pour publier des PDF jusqu'à 1 Go par glisser-déposer et
+  les partager sur une URL publique avec aperçu intégré et lecture par plages.
+techStack:
+- TypeScript
+- Next.js
+- PostgreSQL
+- Docker
+- Nginx
+status: published
+year: 2026
+liveUrl: https://app-titi.wk-archi-o22a-15m-g1.fr
